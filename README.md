@@ -25,6 +25,13 @@ A partir da N2, os dados ficam numa API Spring Boot, que está num repositório 
 - O detalhe recebe só o `pontoId` pela navegação e busca o ponto na API. Um 404 mostra
   "Ponto não encontrado".
 
+- Pontos têm CRUD completo pelo app: "+ Novo ponto" abre `screens/TelaFormPonto.js`, que
+  valida que nenhum campo está vazio antes de enviar. O tipo é escolhido em dois
+  `TouchableOpacity` (coleta / distribuição). Editar abre o **mesmo formulário**, preenchido,
+  com o botão "Salvar alterações" (`PUT`). Excluir pede confirmação com `Alert.alert`
+  (Cancelar / Excluir) e envia `DELETE`. Se a API recusar (400) ou estiver desligada, o
+  formulário mostra o motivo e mantém o que foi digitado.
+
 **Testado no navegador** (`npx expo start --web`), com a API rodando no mesmo computador.
 Para usar no celular com o Expo Go, troque `IP_DO_COMPUTADOR` em `src/services/api.ts` pelo
 IP do computador na rede local (veja com `ipconfig`) e deixe o celular no mesmo Wi-Fi. Se não

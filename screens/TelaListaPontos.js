@@ -15,23 +15,33 @@ import { useValorAtrasado } from '../src/hooks/useValorAtrasado';
 import PontoItem from '../components/PontoItem';
 import { Carregando, Erro, Vazio } from '../components/EstadoTela';
 
-function TelaListaPontos({ navigation }) {
+function TelaListaPontos({ navigation, route }) {
   const [busca, setBusca] = useState('');
   const filtro = useValorAtrasado(busca.trim());
   const lista = useListaPaginada(buscarPaginaPontos, filtro);
   const { recarregar } = lista;
   const refLista = useRef(null);
 
+  // Ponto que acabou de ser cadastrado: aparece no topo, mesmo que pela ordem
+  // alfabética ele caísse numa página que ainda não foi carregada.
+  const pontoCriado = route.params?.pontoCriado ?? null;
+  const dados =
+    pontoCriado && filtro === '' && !lista.itens.some((p) => p.id === pontoCriado.id)
+      ? [pontoCriado, ...lista.itens]
+      : lista.itens;
+
   // Ao abrir a tela, ao voltar para ela e a cada busca nova: começa da página 0
   useFocusEffect(
     useCallback(() => {
       recarregar();
-    }, [recarregar])
+      // Ao sair da tela (ou buscar), o aviso do ponto cadastrado já cumpriu o papel
+      return () => navigation.setParams({ pontoCriado: undefined });
+    }, [recarregar, navigation])
   );
 
   useEffect(() => {
     refLista.current?.scrollToOffset({ offset: 0, animated: false });
-  }, [filtro]);
+  }, [filtro, pontoCriado]);
 
   const abrirDetalhe = useCallback(
     (ponto) => navigation.navigate('DetalhePonto', { pontoId: ponto.id }),
@@ -54,7 +64,7 @@ function TelaListaPontos({ navigation }) {
     return (
       <FlatList
         ref={refLista}
-        data={lista.itens}
+        data={dados}
         keyExtractor={(ponto) => ponto.id}
         renderItem={({ item }) => <PontoItem ponto={item} onPress={abrirDetalhe} />}
         ItemSeparatorComponent={Separador}
@@ -63,6 +73,11 @@ function TelaListaPontos({ navigation }) {
         onEndReachedThreshold={0.5}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        ListHeaderComponent={
+          pontoCriado ? (
+            <Text style={styles.aviso}>Ponto cadastrado: {pontoCriado.nome}</Text>
+          ) : null
+        }
         ListEmptyComponent={
           <Vazio
             titulo={filtro === '' ? 'Nenhum ponto cadastrado' : `Nenhum ponto com "${filtro}"`}
@@ -99,6 +114,13 @@ function TelaListaPontos({ navigation }) {
           <ActivityIndicator style={styles.buscando} color="#1B3A5C" />
         )}
       </View>
+      <TouchableOpacity
+        style={styles.botaoNovo}
+        onPress={() => navigation.navigate('FormPonto', { ponto: undefined })}
+        accessibilityRole="button"
+      >
+        <Text style={styles.botaoNovoTexto}>+ Novo ponto</Text>
+      </TouchableOpacity>
       {renderConteudo()}
     </View>
   );
@@ -153,6 +175,29 @@ const styles = StyleSheet.create({
   },
   buscando: {
     marginLeft: 12,
+  },
+  botaoNovo: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#1B3A5C',
+    borderRadius: 8,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  botaoNovoTexto: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#1B3A5C',
+  },
+  aviso: {
+    fontSize: 14,
+    color: '#2E7D32',
+    backgroundColor: '#E8F5E9',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
   },
   lista: {
     padding: 16,

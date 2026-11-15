@@ -1,16 +1,19 @@
 import { useState, useCallback } from 'react';
-import { Text, ScrollView, StyleSheet } from 'react-native';
+import { Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { buscarPonto } from '../src/services/pontosService';
+import { buscarPonto, excluirPonto } from '../src/services/pontosService';
+import { confirmarExclusao } from '../utils/confirmar';
 import { mensagemDeErro } from '../src/services/api';
 import { Carregando, Erro } from '../components/EstadoTela';
 
 // Recebe só o id pela navegação e busca o ponto na API
-function TelaDetalhePonto({ route }) {
+function TelaDetalhePonto({ route, navigation }) {
   const { pontoId } = route.params;
   const [ponto, setPonto] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(null); // { status, mensagem }
+  const [excluindo, setExcluindo] = useState(false);
+  const [falhaExcluir, setFalhaExcluir] = useState('');
 
   const carregar = useCallback(async (ativo = () => true) => {
     setCarregando(true);
@@ -38,6 +41,26 @@ function TelaDetalhePonto({ route }) {
       };
     }, [carregar])
   );
+
+  async function excluir() {
+    setExcluindo(true);
+    setFalhaExcluir('');
+    try {
+      await excluirPonto(ponto.id);
+      navigation.goBack(); // a lista busca de novo ao voltar e o ponto some
+    } catch (falha) {
+      setFalhaExcluir(mensagemDeErro(falha));
+      setExcluindo(false);
+    }
+  }
+
+  function pedirConfirmacao() {
+    confirmarExclusao(
+      'Excluir ponto',
+      `Excluir "${ponto.nome}"? Essa ação não pode ser desfeita.`,
+      excluir
+    );
+  }
 
   if (carregando && ponto === null) {
     return <Carregando mensagem="Carregando ponto..." />;
@@ -70,6 +93,29 @@ function TelaDetalhePonto({ route }) {
 
       <Text style={styles.rotulo}>Horário</Text>
       <Text style={styles.texto}>{ponto.horario}</Text>
+
+      <TouchableOpacity
+        style={styles.botaoEditar}
+        onPress={() => navigation.navigate('FormPonto', { ponto })}
+        accessibilityRole="button"
+      >
+        <Text style={styles.botaoEditarTexto}>Editar ponto</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.botaoExcluir}
+        onPress={pedirConfirmacao}
+        disabled={excluindo}
+        accessibilityRole="button"
+      >
+        {excluindo ? (
+          <ActivityIndicator color="#C62828" />
+        ) : (
+          <Text style={styles.botaoExcluirTexto}>Excluir ponto</Text>
+        )}
+      </TouchableOpacity>
+
+      {falhaExcluir !== '' && <Text style={styles.falha}>{falhaExcluir}</Text>}
     </ScrollView>
   );
 }
@@ -102,6 +148,39 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     color: '#33475B',
+  },
+  botaoEditar: {
+    backgroundColor: '#1B3A5C',
+    borderRadius: 8,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 32,
+  },
+  botaoEditarTexto: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  botaoExcluir: {
+    borderWidth: 1,
+    borderColor: '#C62828',
+    borderRadius: 8,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+  },
+  botaoExcluirTexto: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#C62828',
+  },
+  falha: {
+    fontSize: 14,
+    color: '#C62828',
+    marginTop: 16,
+    lineHeight: 20,
   },
 });
 

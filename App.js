@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import TelaListaPontos from './screens/TelaListaPontos';
 import TelaDetalhePonto from './screens/TelaDetalhePonto';
+import TelaFormPonto from './screens/TelaFormPonto';
 import TelaCadastroDoacao from './screens/TelaCadastroDoacao';
 import TelaHistoricoDoacoes from './screens/TelaHistoricoDoacoes';
 import TelaDetalheDoacao from './screens/TelaDetalheDoacao';
@@ -62,6 +63,11 @@ export default function App() {
           name="DetalhePonto"
           component={TelaDetalhePonto}
           options={{ title: 'Detalhe do ponto' }}
+        />
+        <Stack.Screen
+          name="FormPonto"
+          component={TelaFormPonto}
+          options={{ title: 'Novo ponto' }}
         />
         <Stack.Screen
           name="CadastroDoacao"
