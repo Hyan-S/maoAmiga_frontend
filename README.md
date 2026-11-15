@@ -40,6 +40,13 @@ A partir da N2, os dados ficam numa API Spring Boot, que está num repositório 
   com filtro por tipo de item feito na API, e estados próprios de carregando, erro e vazio.
   O resumo de totais da N1 saiu da tela, junto com `storage/doacoesStorage.js`.
 
+- O detalhe da doação recebe só o `doacaoId` e busca na API (404 mostra "Doação não
+  encontrada"). Editar reaproveita o formulário do cadastro, preenchido, com "Salvar
+  alterações" (`PUT`; a API mantém id e data de cadastro). Excluir confirma com `Alert.alert` e
+  envia `DELETE`. Se a API estiver desligada ao salvar ou excluir, o app avisa e não finge que
+  deu certo. Se ela cair com um detalhe já aberto, o detalhe continua mostrando o que já tinha,
+  com um aviso de que não conseguiu atualizar.
+
 **Testado no navegador** (`npx expo start --web`), com a API rodando no mesmo computador.
 Para usar no celular com o Expo Go, troque `IP_DO_COMPUTADOR` em `src/services/api.ts` pelo
 IP do computador na rede local (veja com `ipconfig`) e deixe o celular no mesmo Wi-Fi. Se não

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { listarPontos } from '../src/services/pontosService';
-import { cadastrarDoacao } from '../src/services/doacoesService';
+import { cadastrarDoacao, editarDoacao } from '../src/services/doacoesService';
 import { mensagemDeErro } from '../src/services/api';
 
 function validarTipoItem(valor) {
@@ -42,10 +42,16 @@ function validarPontoDestino(valor) {
   return '';
 }
 
-function TelaCadastroDoacao({ navigation }) {
-  const [tipoItem, setTipoItem] = useState('');
-  const [quantidade, setQuantidade] = useState('');
-  const [pontoDestino, setPontoDestino] = useState(''); // nome do ponto escolhido
+// Mesmo formulário para cadastrar e editar. Editando, chega com route.params.doacao
+// (a doação que o detalhe buscou na API).
+function TelaCadastroDoacao({ route, navigation }) {
+  const doacaoEditada = route.params?.doacao ?? null;
+  const editando = doacaoEditada !== null;
+
+  const [tipoItem, setTipoItem] = useState(editando ? doacaoEditada.tipoItem : '');
+  const [quantidade, setQuantidade] = useState(editando ? String(doacaoEditada.quantidade) : '');
+  // nome do ponto escolhido
+  const [pontoDestino, setPontoDestino] = useState(editando ? doacaoEditada.pontoDestino : '');
   const [erros, setErros] = useState({ tipoItem: '', quantidade: '', pontoDestino: '' });
   const [confirmacao, setConfirmacao] = useState('');
   const [falhaSalvar, setFalhaSalvar] = useState('');
@@ -70,6 +76,17 @@ function TelaCadastroDoacao({ navigation }) {
   useEffect(() => {
     carregarPontos();
   }, []);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({ title: editando ? 'Editar doação' : 'Nova doação' });
+  }, [navigation, editando]);
+
+  // Se o ponto da doação editada não existe mais (foi renomeado ou excluído),
+  // ele continua aparecendo como opção para não perder o valor atual.
+  const opcoes =
+    editando && pontoDestino !== '' && !carregandoPontos && !pontos.some((p) => p.nome === pontoDestino)
+      ? [{ id: 'ponto-atual', nome: pontoDestino }, ...pontos]
+      : pontos;
 
   function limparAvisos() {
     setConfirmacao('');
@@ -116,6 +133,12 @@ function TelaCadastroDoacao({ navigation }) {
     setEnviando(true);
     limparAvisos();
     try {
+      if (editando) {
+        // PUT: a API mantém o id e o criadoEm
+        await editarDoacao(doacaoEditada.id, campos);
+        navigation.goBack(); // o detalhe e o histórico buscam de novo ao voltar
+        return;
+      }
       const salva = await cadastrarDoacao(campos);
       setTipoItem('');
       setQuantidade('');
@@ -125,7 +148,9 @@ function TelaCadastroDoacao({ navigation }) {
       );
     } catch (falha) {
       // API recusou (400) ou está desligada: avisa e mantém o que foi digitado
-      setFalhaSalvar(`Não foi possível registrar a doação. ${mensagemDeErro(falha)}`);
+      setFalhaSalvar(
+        `${editando ? 'Não foi possível salvar as alterações.' : 'Não foi possível registrar a doação.'} ${mensagemDeErro(falha)}`
+      );
     } finally {
       setEnviando(false);
     }
@@ -137,9 +162,11 @@ function TelaCadastroDoacao({ navigation }) {
       keyboardShouldPersistTaps="handled"
       automaticallyAdjustKeyboardInsets
     >
-      <Text style={styles.titulo}>Registrar doação</Text>
+      <Text style={styles.titulo}>{editando ? 'Editar doação' : 'Registrar doação'}</Text>
       <Text style={styles.subtitulo}>
-        Preencha o que será doado, a quantidade e o ponto que vai receber.
+        {editando
+          ? 'Altere o que for preciso e salve. A data do registro não muda.'
+          : 'Preencha o que será doado, a quantidade e o ponto que vai receber.'}
       </Text>
 
       <Text style={styles.rotulo}>Tipo do item</Text>
@@ -176,7 +203,7 @@ function TelaCadastroDoacao({ navigation }) {
         </View>
       )}
       <View style={styles.opcoes}>
-        {pontos.map((ponto) => {
+        {opcoes.map((ponto) => {
           const escolhido = pontoDestino === ponto.nome;
           return (
             <TouchableOpacity
@@ -206,9 +233,19 @@ function TelaCadastroDoacao({ navigation }) {
         {enviando ? (
           <ActivityIndicator color="#FFFFFF" />
         ) : (
-          <Text style={styles.botaoTexto}>Registrar doação</Text>
+          <Text style={styles.botaoTexto}>{editando ? 'Salvar alterações' : 'Registrar doação'}</Text>
         )}
       </TouchableOpacity>
+
+      {editando && (
+        <TouchableOpacity
+          style={styles.botaoSecundario}
+          onPress={() => navigation.goBack()}
+          accessibilityRole="button"
+        >
+          <Text style={styles.botaoSecundarioTexto}>Cancelar</Text>
+        </TouchableOpacity>
+      )}
 
       {confirmacao !== '' && <Text style={styles.confirmacao}>{confirmacao}</Text>}
 

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { buscarPonto, excluirPonto } from '../src/services/pontosService';
@@ -12,6 +12,8 @@ function TelaDetalhePonto({ route, navigation }) {
   const [ponto, setPonto] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(null); // { status, mensagem }
+  const [avisoRecarga, setAvisoRecarga] = useState('');
+  const jaCarregou = useRef(false);
   const [excluindo, setExcluindo] = useState(false);
   const [falhaExcluir, setFalhaExcluir] = useState('');
 
@@ -21,9 +23,16 @@ function TelaDetalhePonto({ route, navigation }) {
       const achado = await buscarPonto(pontoId);
       if (!ativo()) return;
       setPonto(achado);
+      jaCarregou.current = true;
+      setAvisoRecarga('');
       setErro(null);
     } catch (falha) {
       if (!ativo()) return;
+      if (falha?.status !== 404 && jaCarregou.current) {
+        // Já tinha os dados: continua mostrando e só avisa que não atualizou
+        setAvisoRecarga(`Não foi possível atualizar. ${mensagemDeErro(falha)}`);
+        return;
+      }
       setPonto(null);
       setErro({ status: falha?.status, mensagem: mensagemDeErro(falha) });
     } finally {
@@ -82,6 +91,7 @@ function TelaDetalhePonto({ route, navigation }) {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
+      {avisoRecarga !== '' && <Text style={styles.aviso}>{avisoRecarga}</Text>}
       <Text style={styles.nome}>{ponto.nome}</Text>
       <Text style={styles.tipo}>{ponto.tipo}</Text>
 
@@ -175,6 +185,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: 'bold',
     color: '#C62828',
+  },
+  aviso: {
+    fontSize: 13,
+    color: '#8A5A00',
+    backgroundColor: '#FFF4E0',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
   },
   falha: {
     fontSize: 14,
