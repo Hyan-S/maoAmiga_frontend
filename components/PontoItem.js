@@ -1,21 +1,35 @@
+import { memo } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 
 function PontoItem({ ponto, onPress }) {
   return (
-    <Pressable style={styles.item} onPress={onPress}>
-      <Text style={styles.nome}>{ponto.nome}</Text>
-      <Text style={styles.tipo}>{ponto.tipo}</Text>
-      <Text style={styles.endereco}>{ponto.endereco}</Text>
-      <Text style={styles.horario}>
-        {ponto.dias} - {ponto.horario}
-      </Text>
-    </Pressable>
+    <View style={styles.linha}>
+      <Pressable
+        style={styles.item}
+        onPress={() => onPress(ponto)}
+        accessibilityRole="button"
+        accessibilityLabel={`${ponto.nome}, ponto de ${ponto.tipo}`}
+      >
+        <Text style={styles.nome}>{ponto.nome}</Text>
+        <Text style={styles.tipo}>{ponto.tipo}</Text>
+        <Text style={styles.endereco}>
+          {ponto.endereco} — {ponto.bairro}
+        </Text>
+        <Text style={styles.horario}>{ponto.horario}</Text>
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  linha: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   item: {
+    flex: 1,
     paddingVertical: 12,
+    minHeight: 44,
   },
   nome: {
     fontSize: 16,
@@ -26,6 +40,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7B8C',
     marginTop: 2,
+    textTransform: 'capitalize',
   },
   endereco: {
     fontSize: 14,
@@ -40,4 +55,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PontoItem;
+export default memo(PontoItem);

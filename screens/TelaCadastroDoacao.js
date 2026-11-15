@@ -1,9 +1,8 @@
-import { useState, useLayoutEffect } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { pontosMock } from '../data/pontos';
+import { useState, useLayoutEffect, useEffect } from 'react';
+import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import { listarPontos } from '../src/services/pontosService';
+import { mensagemDeErro } from '../src/services/api';
 import { salvarDoacao, atualizarDoacao } from '../storage/doacoesStorage';
-
-const pontosQueRecebem = pontosMock.filter((ponto) => ponto.recebe !== '');
 
 function validarTipoItem(valor) {
   if (valor.trim() === '') {
@@ -47,6 +46,25 @@ function TelaCadastroDoacao({ route, navigation }) {
   const [erros, setErros] = useState({ tipoItem: '', quantidade: '', pontoDestino: '' });
   const [confirmacao, setConfirmacao] = useState('');
   const [falhaSalvar, setFalhaSalvar] = useState('');
+  const [pontos, setPontos] = useState([]);
+  const [carregandoPontos, setCarregandoPontos] = useState(true);
+  const [erroPontos, setErroPontos] = useState('');
+
+  async function carregarPontos() {
+    setCarregandoPontos(true);
+    try {
+      setPontos(await listarPontos());
+      setErroPontos('');
+    } catch (falha) {
+      setErroPontos(mensagemDeErro(falha));
+    } finally {
+      setCarregandoPontos(false);
+    }
+  }
+
+  useEffect(() => {
+    carregarPontos();
+  }, []);
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: editando ? 'Editar doação' : 'Nova doação' });
@@ -165,8 +183,17 @@ function TelaCadastroDoacao({ route, navigation }) {
       {erros.quantidade !== '' && <Text style={styles.erro}>{erros.quantidade}</Text>}
 
       <Text style={styles.rotulo}>Ponto de destino</Text>
+      {carregandoPontos && <ActivityIndicator color="#1B3A5C" />}
+      {erroPontos !== '' && (
+        <View>
+          <Text style={styles.erro}>{erroPontos}</Text>
+          <Pressable style={styles.botaoSecundario} onPress={carregarPontos} accessibilityRole="button">
+            <Text style={styles.botaoSecundarioTexto}>Carregar pontos de novo</Text>
+          </Pressable>
+        </View>
+      )}
       <View style={styles.opcoes}>
-        {pontosQueRecebem.map((ponto) => (
+        {pontos.map((ponto) => (
           <Pressable
             key={ponto.id}
             style={[styles.opcao, pontoDestino === ponto.nome && styles.opcaoEscolhida]}

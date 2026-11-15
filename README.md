@@ -5,6 +5,31 @@ App do projeto individual da disciplina (React Native + Expo).
 O Instituto Mão Amiga é um banco de alimentos comunitário. O app mostra os pontos de
 coleta e distribuição: onde ficam, quando abrem e o que cada um recebe ou distribui.
 
+## API
+
+A partir da N2, os dados ficam numa API Spring Boot, que está num repositório separado:
+<https://github.com/Hyan-S/maoAmiga_backend>. Como rodar, endpoints e prints do Swagger estão no README de lá.
+
+### Como o app fala com a API
+
+- Só `src/services/api.ts` chama `fetch`. É lá que fica a URL do servidor, num lugar só
+  (`IP_DO_COMPUTADOR`), e as funções `get`, `post`, `put` e `del`. Resposta de erro lança
+  `ApiError` com o `status` (0 quando a API nem respondeu: desligada, IP errado ou sem rede).
+- `src/services/pontosService.ts` tem listar, buscar página (com filtro), buscar por id,
+  cadastrar, editar e excluir. Nenhuma tela monta URL nem chama `fetch`.
+- `src/hooks/useListaPaginada.js` faz a rolagem infinita: guarda os números de página já
+  pedidos (não pede a mesma duas vezes), para quando chega em `page.totalPages` e descarta
+  respostas atrasadas de uma busca anterior.
+- A lista de pontos busca pela API (nome ou bairro) 400 ms depois que a pessoa para de digitar,
+  e cada busca volta para a página 0.
+- O detalhe recebe só o `pontoId` pela navegação e busca o ponto na API. Um 404 mostra
+  "Ponto não encontrado".
+
+**Testado no navegador** (`npx expo start --web`), com a API rodando no mesmo computador.
+Para usar no celular com o Expo Go, troque `IP_DO_COMPUTADOR` em `src/services/api.ts` pelo
+IP do computador na rede local (veja com `ipconfig`) e deixe o celular no mesmo Wi-Fi. Se não
+conectar, libere a porta 8080 no firewall do Windows.
+
 ## Estado atual (Issue #14)
 
 Pontos de coleta:

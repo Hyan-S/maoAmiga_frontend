@@ -1,7 +1,62 @@
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
-import { pontosMock } from '../data/pontos';
+import { useState, useCallback } from 'react';
+import { Text, ScrollView, StyleSheet } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { buscarPonto } from '../src/services/pontosService';
+import { mensagemDeErro } from '../src/services/api';
+import { Carregando, Erro } from '../components/EstadoTela';
 
-function PontoDetalhe({ ponto }) {
+// Recebe só o id pela navegação e busca o ponto na API
+function TelaDetalhePonto({ route }) {
+  const { pontoId } = route.params;
+  const [ponto, setPonto] = useState(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState(null); // { status, mensagem }
+
+  const carregar = useCallback(async (ativo = () => true) => {
+    setCarregando(true);
+    try {
+      const achado = await buscarPonto(pontoId);
+      if (!ativo()) return;
+      setPonto(achado);
+      setErro(null);
+    } catch (falha) {
+      if (!ativo()) return;
+      setPonto(null);
+      setErro({ status: falha?.status, mensagem: mensagemDeErro(falha) });
+    } finally {
+      if (ativo()) setCarregando(false);
+    }
+  }, [pontoId]);
+
+  // Busca de novo ao voltar para a tela (depois de editar, por exemplo)
+  useFocusEffect(
+    useCallback(() => {
+      let ativo = true;
+      carregar(() => ativo);
+      return () => {
+        ativo = false;
+      };
+    }, [carregar])
+  );
+
+  if (carregando && ponto === null) {
+    return <Carregando mensagem="Carregando ponto..." />;
+  }
+
+  if (erro?.status === 404) {
+    return <Erro titulo="Ponto não encontrado" mensagem="Ele pode ter sido excluído." />;
+  }
+
+  if (erro !== null) {
+    return (
+      <Erro
+        titulo="Não foi possível carregar o ponto"
+        mensagem={erro.mensagem}
+        aoTentarDeNovo={() => carregar()}
+      />
+    );
+  }
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.nome}>{ponto.nome}</Text>
@@ -10,33 +65,13 @@ function PontoDetalhe({ ponto }) {
       <Text style={styles.rotulo}>Endereço</Text>
       <Text style={styles.texto}>{ponto.endereco}</Text>
 
-      <Text style={styles.rotulo}>Dias e horários</Text>
-      <Text style={styles.texto}>
-        {ponto.dias} - {ponto.horario}
-      </Text>
+      <Text style={styles.rotulo}>Bairro</Text>
+      <Text style={styles.texto}>{ponto.bairro}</Text>
 
-      {ponto.recebe !== '' && (
-        <View>
-          <Text style={styles.rotulo}>O que recebe</Text>
-          <Text style={styles.texto}>{ponto.recebe}</Text>
-        </View>
-      )}
-
-      {ponto.distribui !== '' && (
-        <View>
-          <Text style={styles.rotulo}>O que distribui</Text>
-          <Text style={styles.texto}>{ponto.distribui}</Text>
-        </View>
-      )}
+      <Text style={styles.rotulo}>Horário</Text>
+      <Text style={styles.texto}>{ponto.horario}</Text>
     </ScrollView>
   );
-}
-
-function TelaDetalhePonto({ route }) {
-  const { pontoId } = route.params;
-  const ponto = pontosMock.find((p) => p.id === pontoId);
-
-  return <PontoDetalhe ponto={ponto} />;
 }
 
 const styles = StyleSheet.create({
@@ -54,6 +89,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6B7B8C',
     marginTop: 4,
+    textTransform: 'capitalize',
   },
   rotulo: {
     fontSize: 13,
