@@ -1,8 +1,16 @@
-import { useState, useLayoutEffect, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  StyleSheet,
+} from 'react-native';
 import { listarPontos } from '../src/services/pontosService';
+import { cadastrarDoacao } from '../src/services/doacoesService';
 import { mensagemDeErro } from '../src/services/api';
-import { salvarDoacao, atualizarDoacao } from '../storage/doacoesStorage';
 
 function validarTipoItem(valor) {
   if (valor.trim() === '') {
@@ -34,18 +42,15 @@ function validarPontoDestino(valor) {
   return '';
 }
 
-function TelaCadastroDoacao({ route, navigation }) {
-  const doacaoEditada = route.params?.doacao ?? null;
-  const editando = doacaoEditada !== null;
-
-  const [tipoItem, setTipoItem] = useState(editando ? doacaoEditada.tipoItem : '');
-  const [quantidade, setQuantidade] = useState(
-    editando ? String(doacaoEditada.quantidade) : ''
-  );
-  const [pontoDestino, setPontoDestino] = useState(editando ? doacaoEditada.pontoDestino : '');
+function TelaCadastroDoacao({ navigation }) {
+  const [tipoItem, setTipoItem] = useState('');
+  const [quantidade, setQuantidade] = useState('');
+  const [pontoDestino, setPontoDestino] = useState(''); // nome do ponto escolhido
   const [erros, setErros] = useState({ tipoItem: '', quantidade: '', pontoDestino: '' });
   const [confirmacao, setConfirmacao] = useState('');
   const [falhaSalvar, setFalhaSalvar] = useState('');
+  const [enviando, setEnviando] = useState(false);
+
   const [pontos, setPontos] = useState([]);
   const [carregandoPontos, setCarregandoPontos] = useState(true);
   const [erroPontos, setErroPontos] = useState('');
@@ -66,28 +71,26 @@ function TelaCadastroDoacao({ route, navigation }) {
     carregarPontos();
   }, []);
 
-  useLayoutEffect(() => {
-    navigation.setOptions({ title: editando ? 'Editar doação' : 'Nova doação' });
-  }, [navigation, editando]);
+  function limparAvisos() {
+    setConfirmacao('');
+    setFalhaSalvar('');
+  }
 
   function aoDigitarTipoItem(valor) {
     setTipoItem(valor);
-    setConfirmacao('');
-    setFalhaSalvar('');
+    limparAvisos();
     setErros({ ...erros, tipoItem: '' });
   }
 
   function aoDigitarQuantidade(valor) {
     setQuantidade(valor);
-    setConfirmacao('');
-    setFalhaSalvar('');
+    limparAvisos();
     setErros({ ...erros, quantidade: validarQuantidade(valor) });
   }
 
   function aoEscolherPonto(nome) {
     setPontoDestino(nome);
-    setConfirmacao('');
-    setFalhaSalvar('');
+    limparAvisos();
     setErros({ ...erros, pontoDestino: '' });
   }
 
@@ -97,55 +100,35 @@ function TelaCadastroDoacao({ route, navigation }) {
       quantidade: validarQuantidade(quantidade),
       pontoDestino: validarPontoDestino(pontoDestino),
     };
-
     setErros(novosErros);
 
-    const temErro =
-      novosErros.tipoItem !== '' ||
-      novosErros.quantidade !== '' ||
-      novosErros.pontoDestino !== '';
-
-    if (temErro) {
-      setConfirmacao('');
-      setFalhaSalvar('');
+    if (novosErros.tipoItem !== '' || novosErros.quantidade !== '' || novosErros.pontoDestino !== '') {
+      limparAvisos();
       return;
     }
 
     const campos = {
       tipoItem: tipoItem.trim(),
       quantidade: Number(quantidade.trim()),
-      pontoDestino,
+      pontoDestino, // vai para a API o nome do ponto
     };
 
-    if (editando) {
-      const atualizou = await atualizarDoacao({ ...doacaoEditada, ...campos });
-
-      if (!atualizou) {
-        setConfirmacao('');
-        setFalhaSalvar('Não foi possível salvar as alterações. Tente de novo.');
-        return;
-      }
-
-      navigation.goBack();
-      return;
+    setEnviando(true);
+    limparAvisos();
+    try {
+      const salva = await cadastrarDoacao(campos);
+      setTipoItem('');
+      setQuantidade('');
+      setPontoDestino('');
+      setConfirmacao(
+        `Doação registrada: ${salva.quantidade} x ${salva.tipoItem} para ${salva.pontoDestino}.`
+      );
+    } catch (falha) {
+      // API recusou (400) ou está desligada: avisa e mantém o que foi digitado
+      setFalhaSalvar(`Não foi possível registrar a doação. ${mensagemDeErro(falha)}`);
+    } finally {
+      setEnviando(false);
     }
-
-    const salva = await salvarDoacao(campos);
-
-    if (salva === null) {
-      setConfirmacao('');
-      setFalhaSalvar('Não foi possível salvar a doação. Tente de novo.');
-      return;
-    }
-
-    setFalhaSalvar('');
-    setTipoItem('');
-    setQuantidade('');
-    setPontoDestino('');
-
-    setConfirmacao(
-      `Doação registrada: ${salva.quantidade} x ${salva.tipoItem} para ${salva.pontoDestino}.`
-    );
   }
 
   return (
@@ -154,11 +137,9 @@ function TelaCadastroDoacao({ route, navigation }) {
       keyboardShouldPersistTaps="handled"
       automaticallyAdjustKeyboardInsets
     >
-      <Text style={styles.titulo}>{editando ? 'Editar doação' : 'Registrar doação'}</Text>
+      <Text style={styles.titulo}>Registrar doação</Text>
       <Text style={styles.subtitulo}>
-        {editando
-          ? 'Altere o que for preciso e salve. A data do registro não muda.'
-          : 'Preencha o que será doado, a quantidade e o ponto que vai receber.'}
+        Preencha o que será doado, a quantidade e o ponto que vai receber.
       </Text>
 
       <Text style={styles.rotulo}>Tipo do item</Text>
@@ -168,6 +149,7 @@ function TelaCadastroDoacao({ route, navigation }) {
         onChangeText={aoDigitarTipoItem}
         placeholder="Arroz, leite em pó, fralda infantil..."
         placeholderTextColor="#9AA7B4"
+        accessibilityLabel="Tipo do item"
       />
       {erros.tipoItem !== '' && <Text style={styles.erro}>{erros.tipoItem}</Text>}
 
@@ -179,6 +161,7 @@ function TelaCadastroDoacao({ route, navigation }) {
         placeholder="Somente números, ex: 12"
         placeholderTextColor="#9AA7B4"
         keyboardType="numeric"
+        accessibilityLabel="Quantidade"
       />
       {erros.quantidade !== '' && <Text style={styles.erro}>{erros.quantidade}</Text>}
 
@@ -187,60 +170,56 @@ function TelaCadastroDoacao({ route, navigation }) {
       {erroPontos !== '' && (
         <View>
           <Text style={styles.erro}>{erroPontos}</Text>
-          <Pressable style={styles.botaoSecundario} onPress={carregarPontos} accessibilityRole="button">
+          <TouchableOpacity style={styles.botaoSecundario} onPress={carregarPontos} accessibilityRole="button">
             <Text style={styles.botaoSecundarioTexto}>Carregar pontos de novo</Text>
-          </Pressable>
+          </TouchableOpacity>
         </View>
       )}
       <View style={styles.opcoes}>
-        {pontos.map((ponto) => (
-          <Pressable
-            key={ponto.id}
-            style={[styles.opcao, pontoDestino === ponto.nome && styles.opcaoEscolhida]}
-            onPress={() => aoEscolherPonto(ponto.nome)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: pontoDestino === ponto.nome }}
-          >
-            <Text
-              style={[
-                styles.opcaoTexto,
-                pontoDestino === ponto.nome && styles.opcaoTextoEscolhido,
-              ]}
+        {pontos.map((ponto) => {
+          const escolhido = pontoDestino === ponto.nome;
+          return (
+            <TouchableOpacity
+              key={ponto.id}
+              style={[styles.opcao, escolhido && styles.opcaoEscolhida]}
+              onPress={() => aoEscolherPonto(ponto.nome)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: escolhido }}
             >
-              {ponto.nome}
-            </Text>
-          </Pressable>
-        ))}
+              <Text style={[styles.opcaoTexto, escolhido && styles.opcaoTextoEscolhido]}>
+                {ponto.nome}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
       {erros.pontoDestino !== '' && <Text style={styles.erro}>{erros.pontoDestino}</Text>}
 
-      <Pressable style={styles.botao} onPress={aoRegistrar} accessibilityRole="button">
-        <Text style={styles.botaoTexto}>
-          {editando ? 'Salvar alterações' : 'Registrar doação'}
-        </Text>
-      </Pressable>
+      {falhaSalvar !== '' && <Text style={styles.falha}>{falhaSalvar}</Text>}
 
-      {editando && (
-        <Pressable
-          style={styles.botaoSecundario}
-          onPress={() => navigation.goBack()}
-          accessibilityRole="button"
-        >
-          <Text style={styles.botaoSecundarioTexto}>Cancelar</Text>
-        </Pressable>
-      )}
+      <TouchableOpacity
+        style={[styles.botao, enviando && styles.botaoDesativado]}
+        onPress={aoRegistrar}
+        disabled={enviando}
+        accessibilityRole="button"
+      >
+        {enviando ? (
+          <ActivityIndicator color="#FFFFFF" />
+        ) : (
+          <Text style={styles.botaoTexto}>Registrar doação</Text>
+        )}
+      </TouchableOpacity>
 
       {confirmacao !== '' && <Text style={styles.confirmacao}>{confirmacao}</Text>}
-      {falhaSalvar !== '' && <Text style={styles.erro}>{falhaSalvar}</Text>}
 
       {confirmacao !== '' && (
-        <Pressable
+        <TouchableOpacity
           style={styles.botaoSecundario}
           onPress={() => navigation.navigate('HistoricoDoacoes')}
           accessibilityRole="button"
         >
           <Text style={styles.botaoSecundarioTexto}>Ver minhas doações</Text>
-        </Pressable>
+        </TouchableOpacity>
       )}
     </ScrollView>
   );
@@ -289,6 +268,12 @@ const styles = StyleSheet.create({
     color: '#C62828',
     marginTop: 6,
   },
+  falha: {
+    fontSize: 14,
+    color: '#C62828',
+    marginTop: 20,
+    lineHeight: 20,
+  },
   opcoes: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -319,9 +304,13 @@ const styles = StyleSheet.create({
   botao: {
     backgroundColor: '#1B3A5C',
     borderRadius: 8,
-    paddingVertical: 14,
+    minHeight: 48,
     alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 28,
+  },
+  botaoDesativado: {
+    opacity: 0.7,
   },
   botaoTexto: {
     fontSize: 15,
@@ -338,8 +327,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#1B3A5C',
     borderRadius: 8,
-    paddingVertical: 14,
-    minHeight: 44,
+    minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 16,

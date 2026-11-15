@@ -32,6 +32,14 @@ A partir da N2, os dados ficam numa API Spring Boot, que está num repositório 
   (Cancelar / Excluir) e envia `DELETE`. Se a API recusar (400) ou estiver desligada, o
   formulário mostra o motivo e mantém o que foi digitado.
 
+- Doações também saíram do AsyncStorage e passaram para a API, por
+  `src/services/doacoesService.ts` (listar página com filtro, buscar por id, cadastrar, editar e
+  excluir, tudo pelo `api.ts`). O cadastro valida no app e envia `POST`. O ponto de destino é
+  escolhido entre os pontos que vêm de `GET /api/v1/pontos`, um `TouchableOpacity` por ponto,
+  e vai para a API o nome do ponto. O histórico usa a mesma rolagem infinita da lista de pontos,
+  com filtro por tipo de item feito na API, e estados próprios de carregando, erro e vazio.
+  O resumo de totais da N1 saiu da tela, junto com `storage/doacoesStorage.js`.
+
 **Testado no navegador** (`npx expo start --web`), com a API rodando no mesmo computador.
 Para usar no celular com o Expo Go, troque `IP_DO_COMPUTADOR` em `src/services/api.ts` pelo
 IP do computador na rede local (veja com `ipconfig`) e deixe o celular no mesmo Wi-Fi. Se não

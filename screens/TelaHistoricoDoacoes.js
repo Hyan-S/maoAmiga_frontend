@@ -1,85 +1,95 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   TextInput,
   FlatList,
-  Pressable,
+  ActivityIndicator,
+  TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { listarDoacoes } from '../storage/doacoesStorage';
+import { buscarPaginaDoacoes } from '../src/services/doacoesService';
+import { useListaPaginada } from '../src/hooks/useListaPaginada';
+import { useValorAtrasado } from '../src/hooks/useValorAtrasado';
 import DoacaoItem from '../components/DoacaoItem';
-import ResumoDoacoes from '../components/ResumoDoacoes';
+import { Carregando, Erro, Vazio } from '../components/EstadoTela';
 
 function TelaHistoricoDoacoes({ navigation }) {
-  const [doacoes, setDoacoes] = useState([]);
-  const [carregando, setCarregando] = useState(true);
   const [busca, setBusca] = useState('');
+  const filtro = useValorAtrasado(busca.trim());
+  const lista = useListaPaginada(buscarPaginaDoacoes, filtro);
+  const { recarregar } = lista;
+  const refLista = useRef(null);
 
+  // Ao abrir, ao voltar (depois de cadastrar, editar ou excluir) e a cada busca:
+  // pede a página 0 de novo, então a doação mais nova aparece no topo.
   useFocusEffect(
     useCallback(() => {
-      let ativo = true;
-
-      async function carregar() {
-        const salvas = await listarDoacoes();
-        if (ativo) {
-          setDoacoes(salvas);
-          setCarregando(false);
-        }
-      }
-
-      carregar();
-
-      return () => {
-        ativo = false;
-      };
-    }, [])
+      recarregar();
+    }, [recarregar])
   );
 
-  const maisNovasPrimeiro = useMemo(
-    () => [...doacoes].sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)),
-    [doacoes]
-  );
-
-  const filtradas = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    if (termo === '') {
-      return maisNovasPrimeiro;
-    }
-    return maisNovasPrimeiro.filter((doacao) =>
-      doacao.tipoItem.toLowerCase().includes(termo)
-    );
-  }, [maisNovasPrimeiro, busca]);
+  useEffect(() => {
+    refLista.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [filtro]);
 
   const abrirDetalhe = useCallback(
-    (doacao) => {
-      navigation.navigate('DetalheDoacao', { doacao });
-    },
+    (doacao) => navigation.navigate('DetalheDoacao', { doacaoId: doacao.id }),
     [navigation]
   );
 
-  if (carregando) {
-    return <View style={styles.container} />;
-  }
+  const irParaCadastro = () => navigation.navigate('CadastroDoacao');
 
-  if (doacoes.length === 0) {
+  function renderConteudo() {
+    if (lista.carregandoPrimeira && lista.itens.length === 0) {
+      return <Carregando mensagem="Carregando doações..." />;
+    }
+    if (lista.erro !== '') {
+      return (
+        <Erro
+          titulo="Não foi possível carregar as doações"
+          mensagem={lista.erro}
+          aoTentarDeNovo={recarregar}
+        />
+      );
+    }
     return (
-      <View style={styles.vazio}>
-        <Text style={styles.vazioTitulo}>Nenhuma doação registrada ainda</Text>
-        <Text style={styles.vazioTexto}>
-          Assim que você registrar uma doação, ela aparece nesta lista.
-        </Text>
-        <Pressable
-          style={styles.botao}
-          onPress={() => navigation.navigate('CadastroDoacao', { doacao: undefined })}
-          accessibilityRole="button"
-        >
-          <Text style={styles.botaoTexto}>Registrar uma doação</Text>
-        </Pressable>
-      </View>
+      <FlatList
+        ref={refLista}
+        data={lista.itens}
+        keyExtractor={(doacao) => doacao.id}
+        renderItem={({ item }) => <DoacaoItem doacao={item} onPress={abrirDetalhe} />}
+        ItemSeparatorComponent={Separador}
+        contentContainerStyle={styles.lista}
+        onEndReached={lista.carregarMais}
+        onEndReachedThreshold={0.5}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        ListEmptyComponent={
+          filtro === '' ? (
+            <Vazio
+              titulo="Nenhuma doação registrada ainda"
+              mensagem="Assim que você registrar uma doação, ela aparece nesta lista."
+              rotuloAcao="Registrar uma doação"
+              aoAcionar={irParaCadastro}
+            />
+          ) : (
+            <Vazio titulo={`Nenhuma doação com o tipo "${filtro}".`} />
+          )
+        }
+        ListFooterComponent={
+          <Rodape
+            carregandoMais={lista.carregandoMais}
+            erroMais={lista.erroMais}
+            acabou={lista.acabou}
+            temItens={lista.itens.length > 0}
+            aoTentarDeNovo={lista.tentarMaisDeNovo}
+          />
+        }
+      />
     );
   }
 
@@ -99,27 +109,37 @@ function TelaHistoricoDoacoes({ navigation }) {
           clearButtonMode="while-editing"
           accessibilityLabel="Filtrar por tipo de item"
         />
+        {lista.carregandoPrimeira && lista.itens.length > 0 && (
+          <ActivityIndicator style={styles.buscando} color="#1B3A5C" />
+        )}
       </View>
-
-      <FlatList
-        data={filtradas}
-        keyExtractor={(doacao) => doacao.id}
-        renderItem={({ item }) => <DoacaoItem doacao={item} onPress={abrirDetalhe} />}
-        ItemSeparatorComponent={() => <View style={styles.separador} />}
-        contentContainerStyle={styles.lista}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        ListHeaderComponent={<ResumoDoacoes doacoes={doacoes} />}
-        ListEmptyComponent={
-          <View style={styles.semResultado}>
-            <Text style={styles.semResultadoTexto}>
-              Nenhuma doação com o tipo "{busca.trim()}".
-            </Text>
-          </View>
-        }
-      />
+      {renderConteudo()}
     </KeyboardAvoidingView>
   );
+}
+
+function Separador() {
+  return <View style={styles.separador} />;
+}
+
+function Rodape({ carregandoMais, erroMais, acabou, temItens, aoTentarDeNovo }) {
+  if (carregandoMais) {
+    return <ActivityIndicator style={styles.rodape} color="#1B3A5C" />;
+  }
+  if (erroMais !== '') {
+    return (
+      <View style={styles.rodape}>
+        <Text style={styles.rodapeErro}>{erroMais}</Text>
+        <TouchableOpacity style={styles.botaoRodape} onPress={aoTentarDeNovo} accessibilityRole="button">
+          <Text style={styles.botaoRodapeTexto}>Tentar de novo</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+  if (acabou && temItens) {
+    return <Text style={[styles.rodape, styles.rodapeFim]}>Fim do histórico</Text>;
+  }
+  return null;
 }
 
 const styles = StyleSheet.create({
@@ -127,15 +147,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  lista: {
-    padding: 16,
-    flexGrow: 1,
-  },
   buscaArea: {
     paddingHorizontal: 16,
     paddingTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   busca: {
+    flex: 1,
     borderWidth: 1,
     borderColor: '#C6D0DA',
     borderRadius: 8,
@@ -146,53 +165,44 @@ const styles = StyleSheet.create({
     color: '#33475B',
     backgroundColor: '#FFFFFF',
   },
-  semResultado: {
-    paddingVertical: 32,
-    alignItems: 'center',
+  buscando: {
+    marginLeft: 12,
   },
-  semResultadoTexto: {
-    fontSize: 14,
-    color: '#6B7B8C',
-    textAlign: 'center',
-    lineHeight: 20,
+  lista: {
+    padding: 16,
+    flexGrow: 1,
   },
   separador: {
     height: 1,
     backgroundColor: '#E0E0E0',
   },
-  vazio: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
+  rodape: {
+    paddingVertical: 16,
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
   },
-  vazioTitulo: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1B3A5C',
+  rodapeFim: {
+    textAlign: 'center',
+    fontSize: 13,
+    color: '#9AA7B4',
+  },
+  rodapeErro: {
+    fontSize: 13,
+    color: '#C62828',
     textAlign: 'center',
   },
-  vazioTexto: {
-    fontSize: 14,
-    color: '#6B7B8C',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginTop: 8,
-  },
-  botao: {
-    backgroundColor: '#1B3A5C',
+  botaoRodape: {
+    borderWidth: 1,
+    borderColor: '#1B3A5C',
     borderRadius: 8,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     minHeight: 44,
     justifyContent: 'center',
-    marginTop: 24,
+    marginTop: 8,
   },
-  botaoTexto: {
-    fontSize: 15,
+  botaoRodapeTexto: {
+    fontSize: 14,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: '#1B3A5C',
   },
 });
 

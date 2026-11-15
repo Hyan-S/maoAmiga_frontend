@@ -1,44 +1,62 @@
 import { useState, useCallback } from 'react';
-import { Text, Pressable, ScrollView, Alert, StyleSheet } from 'react-native';
+import { Text, ScrollView, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { excluirDoacao, buscarDoacao } from '../storage/doacoesStorage';
+import { buscarDoacao } from '../src/services/doacoesService';
+import { mensagemDeErro } from '../src/services/api';
 import { formatarData } from '../utils/formatarData';
+import { Carregando, Erro } from '../components/EstadoTela';
 
-function TelaDetalheDoacao({ route, navigation }) {
-  const [doacao, setDoacao] = useState(route.params.doacao);
+// Recebe só o id pela navegação e busca a doação na API
+function TelaDetalheDoacao({ route }) {
+  const { doacaoId } = route.params;
+  const [doacao, setDoacao] = useState(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState(null); // { status, mensagem }
+
+  const carregar = useCallback(
+    async (ativo = () => true) => {
+      setCarregando(true);
+      try {
+        const achada = await buscarDoacao(doacaoId);
+        if (!ativo()) return;
+        setDoacao(achada);
+        setErro(null);
+      } catch (falha) {
+        if (!ativo()) return;
+        setDoacao(null);
+        setErro({ status: falha?.status, mensagem: mensagemDeErro(falha) });
+      } finally {
+        if (ativo()) setCarregando(false);
+      }
+    },
+    [doacaoId]
+  );
 
   useFocusEffect(
     useCallback(() => {
       let ativo = true;
-
-      async function recarregar() {
-        const salva = await buscarDoacao(route.params.doacao.id);
-        if (ativo && salva !== null) {
-          setDoacao(salva);
-        }
-      }
-
-      recarregar();
-
+      carregar(() => ativo);
       return () => {
         ativo = false;
       };
-    }, [route.params.doacao.id])
+    }, [carregar])
   );
 
-  async function excluir() {
-    await excluirDoacao(doacao.id);
-    navigation.goBack();
+  if (carregando && doacao === null) {
+    return <Carregando mensagem="Carregando doação..." />;
   }
 
-  function confirmarExclusao() {
-    Alert.alert(
-      'Excluir doação',
-      `Excluir ${doacao.quantidade} x ${doacao.tipoItem}? Essa ação não pode ser desfeita.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Excluir', style: 'destructive', onPress: excluir },
-      ]
+  if (erro?.status === 404) {
+    return <Erro titulo="Doação não encontrada" mensagem="Ela pode ter sido excluída." />;
+  }
+
+  if (erro !== null) {
+    return (
+      <Erro
+        titulo="Não foi possível carregar a doação"
+        mensagem={erro.mensagem}
+        aoTentarDeNovo={() => carregar()}
+      />
     );
   }
 
@@ -59,22 +77,6 @@ function TelaDetalheDoacao({ route, navigation }) {
 
       <Text style={styles.rotulo}>Registrada em</Text>
       <Text style={styles.texto}>{formatarData(doacao.criadoEm)}</Text>
-
-      <Pressable
-        style={styles.botaoEditar}
-        onPress={() => navigation.navigate('CadastroDoacao', { doacao })}
-        accessibilityRole="button"
-      >
-        <Text style={styles.botaoEditarTexto}>Editar doação</Text>
-      </Pressable>
-
-      <Pressable
-        style={styles.botaoExcluir}
-        onPress={confirmarExclusao}
-        accessibilityRole="button"
-      >
-        <Text style={styles.botaoExcluirTexto}>Excluir doação</Text>
-      </Pressable>
     </ScrollView>
   );
 }
@@ -101,35 +103,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     color: '#33475B',
-  },
-  botaoEditar: {
-    backgroundColor: '#1B3A5C',
-    borderRadius: 8,
-    paddingVertical: 14,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 32,
-  },
-  botaoEditarTexto: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  botaoExcluir: {
-    borderWidth: 1,
-    borderColor: '#C62828',
-    borderRadius: 8,
-    paddingVertical: 14,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 12,
-  },
-  botaoExcluirTexto: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#C62828',
   },
 });
 

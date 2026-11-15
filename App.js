@@ -48,7 +48,7 @@ export default function App() {
             ),
             headerRight: () => (
               <Pressable
-                onPress={() => navigation.navigate('CadastroDoacao', { doacao: undefined })}
+                onPress={() => navigation.navigate('CadastroDoacao')}
                 accessibilityRole="button"
                 accessibilityLabel="Doar"
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -77,7 +77,20 @@ export default function App() {
         <Stack.Screen
           name="HistoricoDoacoes"
           component={TelaHistoricoDoacoes}
-          options={{ title: 'Minhas doações' }}
+          options={({ navigation }) => ({
+            title: 'Minhas doações',
+            headerRight: () => (
+              <Pressable
+                onPress={() => navigation.navigate('CadastroDoacao')}
+                accessibilityRole="button"
+                accessibilityLabel="Doar"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={estilos.botaoCabecalho}
+              >
+                <Text style={estilos.botaoCabecalhoTexto}>Doar</Text>
+              </Pressable>
+            ),
+          })}
         />
         <Stack.Screen
           name="DetalheDoacao"
