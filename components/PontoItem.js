@@ -1,7 +1,7 @@
 import { memo } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, TouchableOpacity, StyleSheet } from 'react-native';
 
-function PontoItem({ ponto, onPress }) {
+function PontoItem({ ponto, onPress, favorito, onAlternarFavorito }) {
   return (
     <View style={styles.linha}>
       <Pressable
@@ -17,6 +17,18 @@ function PontoItem({ ponto, onPress }) {
         </Text>
         <Text style={styles.horario}>{ponto.horario}</Text>
       </Pressable>
+
+      {onAlternarFavorito && (
+        <TouchableOpacity
+          style={styles.favorito}
+          onPress={() => onAlternarFavorito(ponto.id)}
+          accessibilityRole="button"
+          accessibilityLabel={favorito ? `Desfavoritar ${ponto.nome}` : `Favoritar ${ponto.nome}`}
+          accessibilityState={{ selected: favorito }}
+        >
+          <Text style={[styles.coracao, favorito && styles.coracaoMarcado]}>{favorito ? '♥' : '♡'}</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -52,6 +64,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#2E7D32',
     marginTop: 4,
+  },
+  // Área de toque de 48x48, acima do mínimo de 44x44
+  favorito: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  coracao: {
+    fontSize: 26,
+    color: '#9AA7B4',
+  },
+  coracaoMarcado: {
+    color: '#C62828',
   },
 });
 

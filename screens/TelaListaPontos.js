@@ -12,6 +12,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { buscarPaginaPontos } from '../src/services/pontosService';
 import { useListaPaginada } from '../src/hooks/useListaPaginada';
 import { useValorAtrasado } from '../src/hooks/useValorAtrasado';
+import { listarFavoritos, alternarFavorito } from '../storage/favoritosStorage';
 import PontoItem from '../components/PontoItem';
 import { Carregando, Erro, Vazio } from '../components/EstadoTela';
 
@@ -21,6 +22,7 @@ function TelaListaPontos({ navigation, route }) {
   const lista = useListaPaginada(buscarPaginaPontos, filtro);
   const { recarregar } = lista;
   const refLista = useRef(null);
+  const [favoritos, setFavoritos] = useState([]); // ids guardados no aparelho
 
   // Ponto que acabou de ser cadastrado: aparece no topo, mesmo que pela ordem
   // alfabética ele caísse numa página que ainda não foi carregada.
@@ -34,6 +36,7 @@ function TelaListaPontos({ navigation, route }) {
   useFocusEffect(
     useCallback(() => {
       recarregar();
+      listarFavoritos().then(setFavoritos);
       // Ao sair da tela (ou buscar), o aviso do ponto cadastrado já cumpriu o papel
       return () => navigation.setParams({ pontoCriado: undefined });
     }, [recarregar, navigation])
@@ -42,6 +45,12 @@ function TelaListaPontos({ navigation, route }) {
   useEffect(() => {
     refLista.current?.scrollToOffset({ offset: 0, animated: false });
   }, [filtro, pontoCriado]);
+
+  const aoAlternarFavorito = useCallback(async (id) => {
+    // Atualiza a tela na hora e grava no AsyncStorage
+    setFavoritos((atuais) => (atuais.includes(id) ? atuais.filter((f) => f !== id) : [...atuais, id]));
+    setFavoritos(await alternarFavorito(id));
+  }, []);
 
   const abrirDetalhe = useCallback(
     (ponto) => navigation.navigate('DetalhePonto', { pontoId: ponto.id }),
@@ -66,7 +75,15 @@ function TelaListaPontos({ navigation, route }) {
         ref={refLista}
         data={dados}
         keyExtractor={(ponto) => ponto.id}
-        renderItem={({ item }) => <PontoItem ponto={item} onPress={abrirDetalhe} />}
+        extraData={favoritos}
+        renderItem={({ item }) => (
+          <PontoItem
+            ponto={item}
+            onPress={abrirDetalhe}
+            favorito={favoritos.includes(item.id)}
+            onAlternarFavorito={aoAlternarFavorito}
+          />
+        )}
         ItemSeparatorComponent={Separador}
         contentContainerStyle={styles.lista}
         onEndReached={lista.carregarMais}
@@ -114,13 +131,22 @@ function TelaListaPontos({ navigation, route }) {
           <ActivityIndicator style={styles.buscando} color="#1B3A5C" />
         )}
       </View>
-      <TouchableOpacity
-        style={styles.botaoNovo}
-        onPress={() => navigation.navigate('FormPonto', { ponto: undefined })}
-        accessibilityRole="button"
-      >
-        <Text style={styles.botaoNovoTexto}>+ Novo ponto</Text>
-      </TouchableOpacity>
+      <View style={styles.acoes}>
+        <TouchableOpacity
+          style={styles.botaoNovo}
+          onPress={() => navigation.navigate('FormPonto', { ponto: undefined })}
+          accessibilityRole="button"
+        >
+          <Text style={styles.botaoNovoTexto}>+ Novo ponto</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.botaoNovo, styles.botaoMeusPontos]}
+          onPress={() => navigation.navigate('MeusPontos')}
+          accessibilityRole="button"
+        >
+          <Text style={styles.botaoNovoTexto}>♥ Meus pontos</Text>
+        </TouchableOpacity>
+      </View>
       {renderConteudo()}
     </View>
   );
@@ -176,9 +202,16 @@ const styles = StyleSheet.create({
   buscando: {
     marginLeft: 12,
   },
-  botaoNovo: {
+  acoes: {
+    flexDirection: 'row',
     marginHorizontal: 16,
     marginTop: 12,
+  },
+  botaoMeusPontos: {
+    marginLeft: 8,
+  },
+  botaoNovo: {
+    flex: 1,
     borderWidth: 1,
     borderColor: '#1B3A5C',
     borderRadius: 8,

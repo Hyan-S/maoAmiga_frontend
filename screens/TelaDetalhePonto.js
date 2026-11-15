@@ -3,6 +3,7 @@ import { Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } fro
 import { useFocusEffect } from '@react-navigation/native';
 import { buscarPonto, excluirPonto } from '../src/services/pontosService';
 import { confirmarExclusao } from '../utils/confirmar';
+import { removerFavorito } from '../storage/favoritosStorage';
 import { mensagemDeErro } from '../src/services/api';
 import { Carregando, Erro } from '../components/EstadoTela';
 
@@ -56,6 +57,7 @@ function TelaDetalhePonto({ route, navigation }) {
     setFalhaExcluir('');
     try {
       await excluirPonto(ponto.id);
+      await removerFavorito(ponto.id); // se era favorito, deixa de ser
       navigation.goBack(); // a lista busca de novo ao voltar e o ponto some
     } catch (falha) {
       setFalhaExcluir(mensagemDeErro(falha));
